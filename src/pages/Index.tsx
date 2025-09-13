@@ -6,62 +6,157 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Users, DollarSign, TrendingUp, Factory } from "lucide-react";
+import { Plus, Search, Users, DollarSign, TrendingUp, Factory, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const { toast } = useToast();
-  const [workers, setWorkers] = useState<Worker[]>([]);
+  const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Fetch workers from Supabase
+  const { data: workers = [], isLoading, error } = useQuery({
+    queryKey: ['workers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Convert database format to app format
+      return data.map(worker => ({
+        id: worker.id,
+        name: worker.name,
+        salary: Number(worker.salary),
+        advance: Number(worker.advance),
+        dues: Number(worker.dues),
+        netWage: Number(worker.net_wage),
+        createdAt: new Date(worker.created_at),
+        updatedAt: new Date(worker.updated_at),
+      })) as Worker[];
+    },
+  });
 
   const calculateNetWage = (salary: number, advance: number, dues: number) => {
     return salary - advance + dues;
   };
 
+  // Add worker mutation
+  const addWorkerMutation = useMutation({
+    mutationFn: async (data: WorkerFormData) => {
+      const netWage = calculateNetWage(data.salary, data.advance, data.dues);
+      const { error } = await supabase
+        .from('workers')
+        .insert({
+          name: data.name,
+          salary: data.salary,
+          advance: data.advance,
+          dues: data.dues,
+          net_wage: netWage,
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, data) => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] });
+      setIsFormOpen(false);
+      toast({
+        title: "Success",
+        description: `${data.name} has been added to the workforce.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to add worker. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error adding worker:', error);
+    },
+  });
+
+  // Update worker mutation
+  const updateWorkerMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: WorkerFormData }) => {
+      const netWage = calculateNetWage(data.salary, data.advance, data.dues);
+      const { error } = await supabase
+        .from('workers')
+        .update({
+          name: data.name,
+          salary: data.salary,
+          advance: data.advance,
+          dues: data.dues,
+          net_wage: netWage,
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, { data }) => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] });
+      setEditingWorker(null);
+      setIsFormOpen(false);
+      toast({
+        title: "Success",
+        description: `${data.name}'s information has been updated.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update worker. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error updating worker:', error);
+    },
+  });
+
+  // Delete worker mutation
+  const deleteWorkerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('workers')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] });
+      const worker = workers.find(w => w.id === id);
+      toast({
+        title: "Worker Removed",
+        description: `${worker?.name} has been removed from the workforce.`,
+        variant: "destructive",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete worker. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error deleting worker:', error);
+    },
+  });
+
   const handleAddWorker = (data: WorkerFormData) => {
-    const newWorker: Worker = {
-      id: crypto.randomUUID(),
-      ...data,
-      netWage: calculateNetWage(data.salary, data.advance, data.dues),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    setWorkers([...workers, newWorker]);
-    toast({
-      title: "Success",
-      description: `${data.name} has been added to the workforce.`,
-    });
+    addWorkerMutation.mutate(data);
   };
 
   const handleEditWorker = (data: WorkerFormData) => {
     if (!editingWorker) return;
-    
-    const updatedWorker: Worker = {
-      ...editingWorker,
-      ...data,
-      netWage: calculateNetWage(data.salary, data.advance, data.dues),
-      updatedAt: new Date(),
-    };
-    
-    setWorkers(workers.map(w => w.id === editingWorker.id ? updatedWorker : w));
-    setEditingWorker(null);
-    toast({
-      title: "Success",
-      description: `${data.name}'s information has been updated.`,
-    });
+    updateWorkerMutation.mutate({ id: editingWorker.id, data });
   };
 
   const handleDeleteWorker = (id: string) => {
-    const worker = workers.find(w => w.id === id);
-    setWorkers(workers.filter(w => w.id !== id));
-    toast({
-      title: "Worker Removed",
-      description: `${worker?.name} has been removed from the workforce.`,
-      variant: "destructive",
-    });
+    deleteWorkerMutation.mutate(id);
   };
 
   const openEditForm = (worker: Worker) => {
@@ -91,9 +186,27 @@ const Index = () => {
     }).format(amount);
   };
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md mx-auto">
+          <CardContent className="text-center py-6">
+            <Factory className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
+            <p className="text-muted-foreground mb-4">
+              Failed to load worker data. Please check your connection and try again.
+            </p>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['workers'] })}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="bg-card border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -106,10 +219,21 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Manage worker salaries, advances & calculations</p>
               </div>
             </div>
-            <Button onClick={() => setIsFormOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Worker
-            </Button>
+            <div className="flex items-center gap-3">
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <Button 
+                onClick={() => setIsFormOpen(true)} 
+                className="gap-2"
+                disabled={addWorkerMutation.isPending}
+              >
+                {addWorkerMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Add Worker
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -220,7 +344,6 @@ const Index = () => {
         )}
       </main>
 
-      {/* Worker Form Dialog */}
       <WorkerForm
         isOpen={isFormOpen}
         onClose={() => {
@@ -229,6 +352,7 @@ const Index = () => {
         }}
         onSubmit={editingWorker ? handleEditWorker : handleAddWorker}
         worker={editingWorker}
+        isSubmitting={addWorkerMutation.isPending || updateWorkerMutation.isPending}
       />
     </div>
   );

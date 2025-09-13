@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      workers: {
+        Row: {
+          advance: number
+          created_at: string
+          dues: number
+          id: string
+          name: string
+          net_wage: number
+          salary: number
+          updated_at: string
+        }
+        Insert: {
+          advance?: number
+          created_at?: string
+          dues?: number
+          id?: string
+          name: string
+          net_wage?: number
+          salary?: number
+          updated_at?: string
+        }
+        Update: {
+          advance?: number
+          created_at?: string
+          dues?: number
+          id?: string
+          name?: string
+          net_wage?: number
+          salary?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

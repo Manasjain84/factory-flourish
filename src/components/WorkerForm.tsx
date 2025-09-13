@@ -5,16 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calculator } from "lucide-react";
+import { Calculator, Loader2 } from "lucide-react";
 
 interface WorkerFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: WorkerFormData) => void;
   worker?: Worker | null;
+  isSubmitting?: boolean;
 }
 
-export const WorkerForm = ({ isOpen, onClose, onSubmit, worker }: WorkerFormProps) => {
+export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = false }: WorkerFormProps) => {
   const [formData, setFormData] = useState<WorkerFormData>({
     name: "",
     salary: 0,
@@ -47,7 +48,9 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker }: WorkerFormProp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
-    onClose();
+    if (!isSubmitting) {
+      onClose();
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -149,11 +152,28 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker }: WorkerFormProp
           </Card>
 
           <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose} 
+              className="flex-1"
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              {worker ? "Update Worker" : "Add Worker"}
+            <Button 
+              type="submit" 
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {worker ? "Updating..." : "Adding..."}
+                </>
+              ) : (
+                worker ? "Update Worker" : "Add Worker"
+              )}
             </Button>
           </div>
         </form>
