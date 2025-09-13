@@ -14,35 +14,70 @@ export type Database = {
   }
   public: {
     Tables: {
-      workers: {
+      monthly_wages: {
         Row: {
           advance: number
           created_at: string
           dues: number
           id: string
-          name: string
+          month: number
           net_wage: number
-          salary: number
           updated_at: string
+          worker_id: string
+          year: number
         }
         Insert: {
           advance?: number
           created_at?: string
           dues?: number
           id?: string
-          name: string
+          month: number
           net_wage?: number
-          salary?: number
           updated_at?: string
+          worker_id: string
+          year: number
         }
         Update: {
           advance?: number
           created_at?: string
           dues?: number
           id?: string
-          name?: string
+          month?: number
           net_wage?: number
-          salary?: number
+          updated_at?: string
+          worker_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_wages_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workers: {
+        Row: {
+          base_salary: number
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          base_salary?: number
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          base_salary?: number
+          created_at?: string
+          id?: string
+          name?: string
           updated_at?: string
         }
         Relationships: []

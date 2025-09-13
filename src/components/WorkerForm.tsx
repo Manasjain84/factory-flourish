@@ -4,8 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Calculator, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface WorkerFormProps {
   isOpen: boolean;
@@ -18,39 +17,26 @@ interface WorkerFormProps {
 export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = false }: WorkerFormProps) => {
   const [formData, setFormData] = useState<WorkerFormData>({
     name: "",
-    salary: 0,
-    advance: 0,
-    dues: 0,
+    baseSalary: 0,
   });
 
   useEffect(() => {
     if (worker) {
       setFormData({
         name: worker.name,
-        salary: worker.salary,
-        advance: worker.advance,
-        dues: worker.dues,
+        baseSalary: worker.baseSalary,
       });
     } else {
       setFormData({
         name: "",
-        salary: 0,
-        advance: 0,
-        dues: 0,
+        baseSalary: 0,
       });
     }
   }, [worker, isOpen]);
 
-  const calculateNetWage = () => {
-    return formData.salary - formData.advance + formData.dues;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
-    if (!isSubmitting) {
-      onClose();
-    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -59,8 +45,6 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = f
       currency: 'INR'
     }).format(amount);
   };
-
-  const netWage = calculateNetWage();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -83,73 +67,21 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = f
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="salary">Base Salary (₹)</Label>
+            <Label htmlFor="baseSalary">Base Salary (₹)</Label>
             <Input
-              id="salary"
+              id="baseSalary"
               type="number"
               min="0"
               step="0.01"
-              value={formData.salary}
-              onChange={(e) => setFormData({ ...formData, salary: parseFloat(e.target.value) || 0 })}
+              value={formData.baseSalary}
+              onChange={(e) => setFormData({ ...formData, baseSalary: parseFloat(e.target.value) || 0 })}
               placeholder="Enter base salary"
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Base salary remains the same each month. Monthly advances and dues are set separately.
+            </p>
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="advance">Advance Taken (₹)</Label>
-            <Input
-              id="advance"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.advance}
-              onChange={(e) => setFormData({ ...formData, advance: parseFloat(e.target.value) || 0 })}
-              placeholder="Enter advance amount"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="dues">Additional Dues (₹)</Label>
-            <Input
-              id="dues"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.dues}
-              onChange={(e) => setFormData({ ...formData, dues: parseFloat(e.target.value) || 0 })}
-              placeholder="Enter additional dues"
-            />
-          </div>
-
-          <Card className="bg-muted/50">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Wage Calculation</span>
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Base Salary:</span>
-                  <span>{formatCurrency(formData.salary)}</span>
-                </div>
-                <div className="flex justify-between text-warning">
-                  <span>Less: Advance:</span>
-                  <span>-{formatCurrency(formData.advance)}</span>
-                </div>
-                <div className="flex justify-between text-success">
-                  <span>Add: Dues:</span>
-                  <span>+{formatCurrency(formData.dues)}</span>
-                </div>
-                <div className="border-t pt-1 flex justify-between font-bold">
-                  <span>Net Wage:</span>
-                  <span className={netWage >= 0 ? "text-success" : "text-warning"}>
-                    {formatCurrency(netWage)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="flex gap-3 pt-4">
             <Button 

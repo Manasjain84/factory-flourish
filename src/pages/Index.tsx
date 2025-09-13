@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
-import { Worker, WorkerFormData } from "@/types/worker";
+import { Worker, WorkerFormData, MonthlyWage, MonthlyWageFormData } from "@/types/worker";
 import { WorkerCard } from "@/components/WorkerCard";
 import { WorkerForm } from "@/components/WorkerForm";
+import { MonthlyWageForm } from "@/components/MonthlyWageForm";
+import { MonthSelector } from "@/components/MonthSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,12 +16,19 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isWorkerFormOpen, setIsWorkerFormOpen] = useState(false);
+  const [isWageFormOpen, setIsWageFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Current month/year state
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+
   // Fetch workers from Supabase
-  const { data: workers = [], isLoading, error } = useQuery({
+  const { data: workers = [], isLoading: workersLoading, error: workersError } = useQuery({
     queryKey: ['workers'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -29,43 +38,62 @@ const Index = () => {
       
       if (error) throw error;
       
-      // Convert database format to app format
       return data.map(worker => ({
         id: worker.id,
         name: worker.name,
-        salary: Number(worker.salary),
-        advance: Number(worker.advance),
-        dues: Number(worker.dues),
-        netWage: Number(worker.net_wage),
+        baseSalary: Number(worker.base_salary),
         createdAt: new Date(worker.created_at),
         updatedAt: new Date(worker.updated_at),
       })) as Worker[];
     },
   });
 
-  const calculateNetWage = (salary: number, advance: number, dues: number) => {
-    return salary - advance + dues;
+  // Fetch monthly wages for selected month/year
+  const { data: monthlyWages = [], isLoading: wagesLoading } = useQuery({
+    queryKey: ['monthly-wages', selectedMonth, selectedYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('monthly_wages')
+        .select('*')
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear);
+      
+      if (error) throw error;
+      
+      return data.map(wage => ({
+        id: wage.id,
+        workerId: wage.worker_id,
+        month: wage.month,
+        year: wage.year,
+        advance: Number(wage.advance),
+        dues: Number(wage.dues),
+        netWage: Number(wage.net_wage),
+        createdAt: new Date(wage.created_at),
+        updatedAt: new Date(wage.updated_at),
+      })) as MonthlyWage[];
+    },
+    enabled: workers.length > 0,
+  });
+
+  const calculateNetWage = (baseSalary: number, advance: number, dues: number) => {
+    return baseSalary - advance + dues;
   };
 
   // Add worker mutation
   const addWorkerMutation = useMutation({
     mutationFn: async (data: WorkerFormData) => {
-      const netWage = calculateNetWage(data.salary, data.advance, data.dues);
       const { error } = await supabase
         .from('workers')
         .insert({
           name: data.name,
-          salary: data.salary,
-          advance: data.advance,
-          dues: data.dues,
-          net_wage: netWage,
+          base_salary: data.baseSalary,
         });
       
       if (error) throw error;
     },
     onSuccess: (_, data) => {
       queryClient.invalidateQueries({ queryKey: ['workers'] });
-      setIsFormOpen(false);
+      setIsWorkerFormOpen(false);
       toast({
         title: "Success",
         description: `${data.name} has been added to the workforce.`,
@@ -84,15 +112,11 @@ const Index = () => {
   // Update worker mutation
   const updateWorkerMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string, data: WorkerFormData }) => {
-      const netWage = calculateNetWage(data.salary, data.advance, data.dues);
       const { error } = await supabase
         .from('workers')
         .update({
           name: data.name,
-          salary: data.salary,
-          advance: data.advance,
-          dues: data.dues,
-          net_wage: netWage,
+          base_salary: data.baseSalary,
         })
         .eq('id', id);
       
@@ -101,7 +125,7 @@ const Index = () => {
     onSuccess: (_, { data }) => {
       queryClient.invalidateQueries({ queryKey: ['workers'] });
       setEditingWorker(null);
-      setIsFormOpen(false);
+      setIsWorkerFormOpen(false);
       toast({
         title: "Success",
         description: `${data.name}'s information has been updated.`,
@@ -129,6 +153,7 @@ const Index = () => {
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['workers'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-wages'] });
       const worker = workers.find(w => w.id === id);
       toast({
         title: "Worker Removed",
@@ -146,6 +171,46 @@ const Index = () => {
     },
   });
 
+  // Set/Update monthly wage mutation
+  const setMonthlyWageMutation = useMutation({
+    mutationFn: async ({ workerId, data }: { workerId: string, data: MonthlyWageFormData }) => {
+      const worker = workers.find(w => w.id === workerId);
+      if (!worker) throw new Error('Worker not found');
+      
+      const netWage = calculateNetWage(worker.baseSalary, data.advance, data.dues);
+      
+      const { error } = await supabase
+        .from('monthly_wages')
+        .upsert({
+          worker_id: workerId,
+          month: selectedMonth,
+          year: selectedYear,
+          advance: data.advance,
+          dues: data.dues,
+          net_wage: netWage,
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['monthly-wages', selectedMonth, selectedYear] });
+      setIsWageFormOpen(false);
+      setSelectedWorker(null);
+      toast({
+        title: "Success",
+        description: "Monthly wage has been updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update monthly wage. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Error setting monthly wage:', error);
+    },
+  });
+
   const handleAddWorker = (data: WorkerFormData) => {
     addWorkerMutation.mutate(data);
   };
@@ -159,9 +224,19 @@ const Index = () => {
     deleteWorkerMutation.mutate(id);
   };
 
+  const handleSetWage = (worker: Worker) => {
+    setSelectedWorker(worker);
+    setIsWageFormOpen(true);
+  };
+
+  const handleWageFormSubmit = (data: MonthlyWageFormData) => {
+    if (!selectedWorker) return;
+    setMonthlyWageMutation.mutate({ workerId: selectedWorker.id, data });
+  };
+
   const openEditForm = (worker: Worker) => {
     setEditingWorker(worker);
-    setIsFormOpen(true);
+    setIsWorkerFormOpen(true);
   };
 
   const filteredWorkers = useMemo(() => {
@@ -170,14 +245,19 @@ const Index = () => {
     );
   }, [workers, searchTerm]);
 
+  // Get monthly wage for a specific worker
+  const getWorkerMonthlyWage = (workerId: string) => {
+    return monthlyWages.find(wage => wage.workerId === workerId);
+  };
+
   const totalStats = useMemo(() => {
-    const totalSalary = workers.reduce((sum, w) => sum + w.salary, 0);
-    const totalAdvances = workers.reduce((sum, w) => sum + w.advance, 0);
-    const totalDues = workers.reduce((sum, w) => sum + w.dues, 0);
-    const totalNetWages = workers.reduce((sum, w) => sum + w.netWage, 0);
+    const totalBaseSalary = workers.reduce((sum, w) => sum + w.baseSalary, 0);
+    const totalAdvances = monthlyWages.reduce((sum, w) => sum + w.advance, 0);
+    const totalDues = monthlyWages.reduce((sum, w) => sum + w.dues, 0);
+    const totalNetWages = monthlyWages.reduce((sum, w) => sum + w.netWage, 0);
     
-    return { totalSalary, totalAdvances, totalDues, totalNetWages };
-  }, [workers]);
+    return { totalBaseSalary, totalAdvances, totalDues, totalNetWages };
+  }, [workers, monthlyWages]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -185,6 +265,9 @@ const Index = () => {
       currency: 'INR'
     }).format(amount);
   };
+
+  const isLoading = workersLoading || wagesLoading;
+  const error = workersError;
 
   if (error) {
     return (
@@ -205,6 +288,8 @@ const Index = () => {
     );
   }
 
+  const selectedWorkerWage = selectedWorker ? getWorkerMonthlyWage(selectedWorker.id) : null;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b sticky top-0 z-10">
@@ -216,13 +301,13 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Factory Wage Manager</h1>
-                <p className="text-sm text-muted-foreground">Manage worker salaries, advances & calculations</p>
+                <p className="text-sm text-muted-foreground">Manage monthly worker wages, advances & calculations</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               <Button 
-                onClick={() => setIsFormOpen(true)} 
+                onClick={() => setIsWorkerFormOpen(true)} 
                 className="gap-2"
                 disabled={addWorkerMutation.isPending}
               >
@@ -239,6 +324,16 @@ const Index = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6">
+        {/* Month Selector */}
+        <div className="mb-6">
+          <MonthSelector
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
+        </div>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
@@ -250,6 +345,9 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{workers.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {monthlyWages.length} have wage data this month
+              </p>
             </CardContent>
           </Card>
           
@@ -257,11 +355,11 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-primary" />
-                Total Salaries
+                Total Base Salaries
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totalStats.totalSalary)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(totalStats.totalBaseSalary)}</div>
             </CardContent>
           </Card>
           
@@ -281,7 +379,7 @@ const Index = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-success" />
-                Net Payable
+                Net Payable This Month
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -318,12 +416,12 @@ const Index = () => {
               </h3>
               <p className="text-muted-foreground mb-4">
                 {workers.length === 0 
-                  ? "Start by adding your first factory worker to track their wages and advances."
+                  ? "Start by adding your first factory worker to track their monthly wages."
                   : "Try adjusting your search terms to find workers."
                 }
               </p>
               {workers.length === 0 && (
-                <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+                <Button onClick={() => setIsWorkerFormOpen(true)} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add First Worker
                 </Button>
@@ -336,8 +434,10 @@ const Index = () => {
               <WorkerCard
                 key={worker.id}
                 worker={worker}
+                monthlyWage={getWorkerMonthlyWage(worker.id)}
                 onEdit={openEditForm}
                 onDelete={handleDeleteWorker}
+                onSetWage={handleSetWage}
               />
             ))}
           </div>
@@ -345,15 +445,31 @@ const Index = () => {
       </main>
 
       <WorkerForm
-        isOpen={isFormOpen}
+        isOpen={isWorkerFormOpen}
         onClose={() => {
-          setIsFormOpen(false);
+          setIsWorkerFormOpen(false);
           setEditingWorker(null);
         }}
         onSubmit={editingWorker ? handleEditWorker : handleAddWorker}
         worker={editingWorker}
         isSubmitting={addWorkerMutation.isPending || updateWorkerMutation.isPending}
       />
+
+      {selectedWorker && (
+        <MonthlyWageForm
+          isOpen={isWageFormOpen}
+          onClose={() => {
+            setIsWageFormOpen(false);
+            setSelectedWorker(null);
+          }}
+          onSubmit={handleWageFormSubmit}
+          worker={selectedWorker}
+          month={selectedMonth}
+          year={selectedYear}
+          existingWage={selectedWorkerWage}
+          isSubmitting={setMonthlyWageMutation.isPending}
+        />
+      )}
     </div>
   );
 };
