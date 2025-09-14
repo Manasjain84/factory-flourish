@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Worker, WorkerFormData, MonthlyWage, MonthlyWageFormData } from "@/types/worker";
 import { WorkerCard } from "@/components/WorkerCard";
 import { WorkerForm } from "@/components/WorkerForm";
@@ -8,24 +8,76 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Users, DollarSign, TrendingUp, Factory, Loader2 } from "lucide-react";
+import { Plus, Search, Users, DollarSign, TrendingUp, Factory, Loader2, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { User, Session } from '@supabase/supabase-js';
 
 const Index = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isWorkerFormOpen, setIsWorkerFormOpen] = useState(false);
   const [isWageFormOpen, setIsWageFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   // Current month/year state
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+
+  // Authentication check
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Redirect to auth if not logged in
+        if (!session?.user) {
+          navigate("/auth");
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (!session?.user) {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Fetch workers from Supabase
   const { data: workers = [], isLoading: workersLoading, error: workersError } = useQuery({
@@ -46,6 +98,7 @@ const Index = () => {
         updatedAt: new Date(worker.updated_at),
       })) as Worker[];
     },
+    enabled: !!user, // Only fetch when user is authenticated
   });
 
   // Fetch monthly wages for selected month/year
@@ -72,7 +125,7 @@ const Index = () => {
         updatedAt: new Date(wage.updated_at),
       })) as MonthlyWage[];
     },
-    enabled: workers.length > 0,
+    enabled: workers.length > 0 && !!user,
   });
 
   const calculateNetWage = (baseSalary: number, advance: number, dues: number) => {
@@ -302,6 +355,7 @@ const Index = () => {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Factory Wage Manager</h1>
                 <p className="text-sm text-muted-foreground">Manage monthly worker wages, advances & calculations</p>
+                {user && <p className="text-xs text-muted-foreground">Signed in as: {user.email}</p>}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -317,6 +371,10 @@ const Index = () => {
                   <Plus className="h-4 w-4" />
                 )}
                 Add Worker
+              </Button>
+              <Button variant="outline" onClick={handleSignOut} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
               </Button>
             </div>
           </div>
