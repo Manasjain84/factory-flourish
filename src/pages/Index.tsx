@@ -349,7 +349,11 @@ const Index = () => {
 
   // Show admin setup if user doesn't have a role
   if (user && hasRole === false) {
-    return <AdminSetup user={user} onRoleGranted={handleRoleGranted} />;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <AdminSetup />
+      </div>
+    );
   }
 
   if (error) {
