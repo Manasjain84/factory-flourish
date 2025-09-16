@@ -4,6 +4,7 @@ import { WorkerCard } from "@/components/WorkerCard";
 import { WorkerForm } from "@/components/WorkerForm";
 import { MonthlyWageForm } from "@/components/MonthlyWageForm";
 import { MonthSelector } from "@/components/MonthSelector";
+import { AdminSetup } from "@/components/AdminSetup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ const Index = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [hasRole, setHasRole] = useState<boolean | null>(null);
 
   // Current month/year state
   const currentDate = new Date();
@@ -79,6 +81,24 @@ const Index = () => {
     }
   };
 
+  // Check user authorization
+  const { data: userRole, isLoading: roleLoading } = useQuery({
+    queryKey: ['user-role', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user!.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
+      
+      setHasRole(!!data);
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Fetch workers from Supabase
   const { data: workers = [], isLoading: workersLoading, error: workersError } = useQuery({
     queryKey: ['workers'],
@@ -98,7 +118,7 @@ const Index = () => {
         updatedAt: new Date(worker.updated_at),
       })) as Worker[];
     },
-    enabled: !!user, // Only fetch when user is authenticated
+    enabled: !!user && hasRole === true, // Only fetch when user is authenticated and authorized
   });
 
   // Fetch monthly wages for selected month/year
@@ -125,7 +145,7 @@ const Index = () => {
         updatedAt: new Date(wage.updated_at),
       })) as MonthlyWage[];
     },
-    enabled: workers.length > 0 && !!user,
+    enabled: workers.length > 0 && !!user && hasRole === true,
   });
 
   const calculateNetWage = (baseSalary: number, advance: number, dues: number) => {
@@ -319,8 +339,18 @@ const Index = () => {
     }).format(amount);
   };
 
-  const isLoading = workersLoading || wagesLoading;
+  const handleRoleGranted = () => {
+    setHasRole(true);
+    queryClient.invalidateQueries({ queryKey: ['user-role'] });
+  };
+
+  const isLoading = workersLoading || wagesLoading || roleLoading;
   const error = workersError;
+
+  // Show admin setup if user doesn't have a role
+  if (user && hasRole === false) {
+    return <AdminSetup user={user} onRoleGranted={handleRoleGranted} />;
+  }
 
   if (error) {
     return (
