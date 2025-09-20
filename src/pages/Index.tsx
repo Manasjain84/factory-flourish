@@ -148,8 +148,19 @@ const Index = () => {
     enabled: workers.length > 0 && !!user && hasRole === true,
   });
 
-  const calculateNetWage = (baseSalary: number, advance: number, dues: number) => {
-    return baseSalary - advance + dues;
+  const calculateNetWage = (
+    baseSalary: number, 
+    advance: number, 
+    dues: number, 
+    daysWorked: number, 
+    totalDaysInMonth: number, 
+    overtimeHours: number, 
+    overtimeRate: number
+  ) => {
+    const dailyWage = baseSalary / totalDaysInMonth;
+    const baseWageCalculated = dailyWage * daysWorked;
+    const overtimeWage = overtimeHours * overtimeRate;
+    return baseWageCalculated - advance + dues + overtimeWage;
   };
 
   // Add worker mutation
@@ -160,6 +171,8 @@ const Index = () => {
         .insert({
           name: data.name,
           base_salary: data.baseSalary,
+          shift_hours: data.shiftHours,
+          overtime_rate_per_hour: data.overtimeRatePerHour,
         });
       
       if (error) throw error;
@@ -190,6 +203,8 @@ const Index = () => {
         .update({
           name: data.name,
           base_salary: data.baseSalary,
+          shift_hours: data.shiftHours,
+          overtime_rate_per_hour: data.overtimeRatePerHour,
         })
         .eq('id', id);
       
@@ -250,7 +265,11 @@ const Index = () => {
       const worker = workers.find(w => w.id === workerId);
       if (!worker) throw new Error('Worker not found');
       
-      const netWage = calculateNetWage(worker.baseSalary, data.advance, data.dues);
+      // Calculate wages using the new formula
+      const dailyWage = worker.baseSalary / data.totalDaysInMonth;
+      const baseWageCalculated = dailyWage * data.daysWorked;
+      const overtimeWage = data.overtimeHours * worker.overtimeRatePerHour;
+      const netWage = baseWageCalculated - data.advance + data.dues + overtimeWage;
       
       const { error } = await supabase
         .from('monthly_wages')
@@ -260,6 +279,11 @@ const Index = () => {
           year: selectedYear,
           advance: data.advance,
           dues: data.dues,
+          days_worked: data.daysWorked,
+          total_days_in_month: data.totalDaysInMonth,
+          overtime_hours: data.overtimeHours,
+          base_wage_calculated: baseWageCalculated,
+          overtime_wage: overtimeWage,
           net_wage: netWage,
         });
       

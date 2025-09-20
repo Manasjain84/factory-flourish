@@ -36,6 +36,9 @@ export const MonthlyWageForm = ({
   const [formData, setFormData] = useState<MonthlyWageFormData>({
     advance: 0,
     dues: 0,
+    daysWorked: 0,
+    totalDaysInMonth: 30,
+    overtimeHours: 0,
   });
 
   useEffect(() => {
@@ -43,17 +46,35 @@ export const MonthlyWageForm = ({
       setFormData({
         advance: existingWage.advance,
         dues: existingWage.dues,
+        daysWorked: existingWage.daysWorked,
+        totalDaysInMonth: existingWage.totalDaysInMonth,
+        overtimeHours: existingWage.overtimeHours,
       });
     } else {
+      // Calculate total days in month
+      const daysInMonth = new Date(year, month, 0).getDate();
       setFormData({
         advance: 0,
         dues: 0,
+        daysWorked: daysInMonth,
+        totalDaysInMonth: daysInMonth,
+        overtimeHours: 0,
       });
     }
-  }, [existingWage, isOpen]);
+  }, [existingWage, isOpen, month, year]);
 
   const calculateNetWage = () => {
-    return worker.baseSalary - formData.advance + formData.dues;
+    // Calculate daily wage
+    const dailyWage = worker.baseSalary / formData.totalDaysInMonth;
+    
+    // Calculate base wage for days worked
+    const baseWageCalculated = dailyWage * formData.daysWorked;
+    
+    // Calculate overtime wage
+    const overtimeWage = formData.overtimeHours * worker.overtimeRatePerHour;
+    
+    // Calculate net wage
+    return baseWageCalculated - formData.advance + formData.dues + overtimeWage;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -78,10 +99,56 @@ export const MonthlyWageForm = ({
             {existingWage ? "Update" : "Set"} Wage for {worker.name}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {MONTHS[month - 1]} {year} • Base Salary: {formatCurrency(worker.baseSalary)}
+            {MONTHS[month - 1]} {year} • Base Salary: {formatCurrency(worker.baseSalary)} • {worker.shiftHours}hr shift
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="daysWorked">Days Worked</Label>
+              <Input
+                id="daysWorked"
+                type="number"
+                min="0"
+                max={formData.totalDaysInMonth}
+                value={formData.daysWorked}
+                onChange={(e) => setFormData({ ...formData, daysWorked: parseInt(e.target.value) || 0 })}
+                placeholder="Days worked"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="totalDays">Total Days in Month</Label>
+              <Input
+                id="totalDays"
+                type="number"
+                min="28"
+                max="31"
+                value={formData.totalDaysInMonth}
+                onChange={(e) => setFormData({ ...formData, totalDaysInMonth: parseInt(e.target.value) || 30 })}
+                placeholder="Total working days"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="overtimeHours">Overtime Hours</Label>
+            <Input
+              id="overtimeHours"
+              type="number"
+              min="0"
+              step="0.5"
+              value={formData.overtimeHours}
+              onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
+              placeholder="Enter overtime hours"
+            />
+            <p className="text-xs text-muted-foreground">
+              Rate: {formatCurrency(worker.overtimeRatePerHour)}/hour
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="advance">Advance Taken (₹)</Label>
             <Input
@@ -116,9 +183,23 @@ export const MonthlyWageForm = ({
               </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Base Salary:</span>
+                  <span>Monthly Salary:</span>
                   <span>{formatCurrency(worker.baseSalary)}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span>Days Worked:</span>
+                  <span>{formData.daysWorked} / {formData.totalDaysInMonth}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Base Wage:</span>
+                  <span>{formatCurrency((worker.baseSalary / formData.totalDaysInMonth) * formData.daysWorked)}</span>
+                </div>
+                {formData.overtimeHours > 0 && (
+                  <div className="flex justify-between text-success">
+                    <span>Overtime ({formData.overtimeHours}hrs):</span>
+                    <span>+{formatCurrency(formData.overtimeHours * worker.overtimeRatePerHour)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-warning">
                   <span>Less: Advance:</span>
                   <span>-{formatCurrency(formData.advance)}</span>

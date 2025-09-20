@@ -38,9 +38,10 @@ export const WorkerCard = ({ worker, monthlyWage, onEdit, onDelete, onSetWage }:
             </div>
             <div>
               <h3 className="font-semibold text-lg">{worker.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                Base: {formatCurrency(worker.baseSalary)}
-              </p>
+              <div className="text-sm text-muted-foreground space-y-0.5">
+                <p>Base: {formatCurrency(worker.baseSalary)}</p>
+                <p>{worker.shiftHours}hr shift • {formatCurrency(worker.overtimeRatePerHour)}/hr OT</p>
+              </div>
             </div>
           </div>
           <div className="flex gap-1">
@@ -70,15 +71,45 @@ export const WorkerCard = ({ worker, monthlyWage, onEdit, onDelete, onSetWage }:
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-3 w-3 text-primary" />
-                <span className="text-muted-foreground">Advance:</span>
+                <span className="text-muted-foreground">Days:</span>
               </div>
-              <span className="font-medium text-warning">{formatCurrency(monthlyWage.advance)}</span>
+              <span className="font-medium">{monthlyWage.daysWorked}/{monthlyWage.totalDaysInMonth}</span>
               
               <div className="flex items-center gap-2">
-                <DollarSign className="h-3 w-3 text-success" />
-                <span className="text-muted-foreground">Dues:</span>
+                <DollarSign className="h-3 w-3 text-primary" />
+                <span className="text-muted-foreground">Base Wage:</span>
               </div>
-              <span className="font-medium text-success">{formatCurrency(monthlyWage.dues)}</span>
+              <span className="font-medium">{formatCurrency(monthlyWage.baseWageCalculated)}</span>
+
+              {monthlyWage.overtimeHours > 0 && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-3 w-3 text-success" />
+                    <span className="text-muted-foreground">OT ({monthlyWage.overtimeHours}hrs):</span>
+                  </div>
+                  <span className="font-medium text-success">+{formatCurrency(monthlyWage.overtimeWage)}</span>
+                </>
+              )}
+              
+              {monthlyWage.advance > 0 && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-3 w-3 text-warning" />
+                    <span className="text-muted-foreground">Advance:</span>
+                  </div>
+                  <span className="font-medium text-warning">-{formatCurrency(monthlyWage.advance)}</span>
+                </>
+              )}
+
+              {monthlyWage.dues > 0 && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-3 w-3 text-success" />
+                    <span className="text-muted-foreground">Dues:</span>
+                  </div>
+                  <span className="font-medium text-success">+{formatCurrency(monthlyWage.dues)}</span>
+                </>
+              )}
             </div>
             
             <div className="border-t pt-3">

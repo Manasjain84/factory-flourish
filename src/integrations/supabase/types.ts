@@ -17,33 +17,48 @@ export type Database = {
       monthly_wages: {
         Row: {
           advance: number
+          base_wage_calculated: number
           created_at: string
+          days_worked: number
           dues: number
           id: string
           month: number
           net_wage: number
+          overtime_hours: number
+          overtime_wage: number
+          total_days_in_month: number
           updated_at: string
           worker_id: string
           year: number
         }
         Insert: {
           advance?: number
+          base_wage_calculated?: number
           created_at?: string
+          days_worked?: number
           dues?: number
           id?: string
           month: number
           net_wage?: number
+          overtime_hours?: number
+          overtime_wage?: number
+          total_days_in_month?: number
           updated_at?: string
           worker_id: string
           year: number
         }
         Update: {
           advance?: number
+          base_wage_calculated?: number
           created_at?: string
+          days_worked?: number
           dues?: number
           id?: string
           month?: number
           net_wage?: number
+          overtime_hours?: number
+          overtime_wage?: number
+          total_days_in_month?: number
           updated_at?: string
           worker_id?: string
           year?: number
@@ -88,6 +103,8 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          overtime_rate_per_hour: number
+          shift_hours: number
           updated_at: string
         }
         Insert: {
@@ -95,6 +112,8 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          overtime_rate_per_hour?: number
+          shift_hours?: number
           updated_at?: string
         }
         Update: {
@@ -102,6 +121,8 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          overtime_rate_per_hour?: number
+          shift_hours?: number
           updated_at?: string
         }
         Relationships: []

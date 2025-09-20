@@ -18,6 +18,8 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = f
   const [formData, setFormData] = useState<WorkerFormData>({
     name: "",
     baseSalary: 0,
+    shiftHours: 8,
+    overtimeRatePerHour: 0,
   });
 
   useEffect(() => {
@@ -25,11 +27,15 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = f
       setFormData({
         name: worker.name,
         baseSalary: worker.baseSalary,
+        shiftHours: worker.shiftHours,
+        overtimeRatePerHour: worker.overtimeRatePerHour,
       });
     } else {
       setFormData({
         name: "",
         baseSalary: 0,
+        shiftHours: 8,
+        overtimeRatePerHour: 0,
       });
     }
   }, [worker, isOpen]);
@@ -79,7 +85,40 @@ export const WorkerForm = ({ isOpen, onClose, onSubmit, worker, isSubmitting = f
               required
             />
             <p className="text-xs text-muted-foreground">
-              Base salary remains the same each month. Monthly advances and dues are set separately.
+              Monthly base salary for full attendance
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="shiftHours">Shift Hours</Label>
+            <Input
+              id="shiftHours"
+              type="number"
+              min="1"
+              max="24"
+              value={formData.shiftHours}
+              onChange={(e) => setFormData({ ...formData, shiftHours: parseInt(e.target.value) || 8 })}
+              placeholder="Enter daily shift hours"
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Regular working hours per day (e.g., 8 for 8-hour shift)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="overtimeRate">Overtime Rate (₹/hour)</Label>
+            <Input
+              id="overtimeRate"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.overtimeRatePerHour}
+              onChange={(e) => setFormData({ ...formData, overtimeRatePerHour: parseFloat(e.target.value) || 0 })}
+              placeholder="Enter overtime rate per hour"
+            />
+            <p className="text-xs text-muted-foreground">
+              Additional payment per overtime hour worked
             </p>
           </div>
 
